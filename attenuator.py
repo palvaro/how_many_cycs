@@ -1,8 +1,10 @@
-import random
 import copy
+import random
+
 from graphviz import Digraph
 
 MAX_AMBIGUITY = 5
+
 
 class Transaction(object):
     def __init__(self, name):
@@ -10,13 +12,14 @@ class Transaction(object):
 
     def __str__(self):
         return "Xact(" + self.name + ")"
-    
+
+
 class Dependency(object):
     def __init__(self, kind, tfrom, tto):
         self.kind = kind
         self.tfrom = tfrom
         self.tto = tto
-    
+
     def __str__(self):
         return self.tfrom.name + "--" + self.kind + "->" + self.tto.name
 
@@ -27,7 +30,6 @@ class DSG(object):
         self.dependencies = []
         self.outgoing = {}
         self.incoming = {}
-        
 
     def add_xact(self, name):
         xact = Transaction(name)
@@ -37,7 +39,7 @@ class DSG(object):
     def add_dep(self, kind, tfrom, tto):
         self.dependencies.append(Dependency(kind, tfrom, tto))
         new = [tto, kind]
-        #print "ADD DEP " + tto.name
+        # print "ADD DEP " + tto.name
         if tfrom in self.outgoing:
             self.outgoing[tfrom].append(new)
         else:
@@ -61,13 +63,12 @@ class DSG(object):
                     ret = ret.union(self.all_reachable(t[0], visited))
                     visited = visited.union(ret)
             return ret
-        else:   
+        else:
             return set([tfrom])
-    
+
     def __str__(self):
         return "\n".join(map(lambda x: x.__str__(), self.dependencies))
 
-    
     def to_dot(self):
         dot = Digraph(comment="dwarf")
         for xact in self.transactions:
@@ -77,8 +78,7 @@ class DSG(object):
             dot.edge(dep.tfrom.name, dep.tto.name, label=dep.kind)
 
         return dot
-   
- 
+
 
 class HyperDSG(object):
     def __init__(self, dwarf):
@@ -98,13 +98,12 @@ class HyperDSG(object):
                     self.hyper_deps.append(Dependency(dep.kind, dep.tfrom, dep.tto))
                     # and then add in a bunch more hyperedges.  should we sometimes create new transactions?
                     # probably.  but not for now; let's go wild.
-            
+
                     # pick a transaction that is reachable from tto.  draw a maybe WR EDGE FROM IT TO TTO!
                     print "reach from " + str(dep.tto)
                     all = list(self.dsg.all_reachable(dep.tto, set()))
-                    indx = random.randint(0, len(all)-1)
+                    indx = random.randint(0, len(all) - 1)
                     self.hyper_deps.append(Dependency(dep.kind, all[indx], dep.tto))
-
 
     def to_dot(self):
         dot = self.dsg.to_dot()
@@ -112,7 +111,37 @@ class HyperDSG(object):
             dot.edge(dep.tfrom.name, dep.tto.name, label=dep.kind, style="dashed")
         return dot
 
-    
+    def to_history(self):
+        txns = {}
+        letters = random.shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+        # go through dsg edges first, assign variables and their associated values as dictated by the label type.
+        for dep in self.dsg.dependencies:
+            ops = {}
+            if dep.kind == "WW":
+                # assign Ti: {X = foo} Tj: {X = bar}
+                # are we a spur or cycle?
+                cycle_participants = list(self.dsg.all_reachable(dep.tto, set()))
+                # if we are a spur, doesn't matter which variable we alter, so long as it is unique.
+                # also, if we the first of our cycle to write to a var just assign arbitrarily.
+                if dep.tfrom not in cycle_participants or (
+                        dep.tfrom in cycle_participants and txns[dep.tfrom] is not None):
+                    ops[":f"] = "write"
+                    ops[":k"] = letters.pop()
+                    ops[":v"] = random.randint(1, MAX_AMBIGUITY)
+                # if we are a WW cyclic participant, and second we've accessed, should modify the SAME variable our sister dep has.
+                if dep.tfrom in cycle_participants:
+                    ops[":f"] = "write"
+                    ops[":k"] =  # SISTER'S KEY OF CHOICE
+                    ops[":v"] = random.randint(1, MAX_AMBIGUITY)  # THAT IS NOT THE SAME OUR SISTER CHOSE
+                txns[dep] = ops
+
+            if dep.kind == "WR":
+            # assign Ti: {X = foo} Tj: {Read X=foo}
+            if dep.kind == "RW":
+        # assign
+        # then go through hdsg edges,
+        for maybe_dep in self.hyper_deps:
+
 
 class Dwarf(object):
     # need to define your own init!
@@ -128,7 +157,7 @@ class Dwarf(object):
 
     def serial_grow(self, name):
         # pick a node at random
-        some_node = self.dwarf.transactions[random.randint(0, len(self.dwarf.transactions)-1)]
+        some_node = self.dwarf.transactions[random.randint(0, len(self.dwarf.transactions) - 1)]
         # create a new transaction
         # N.B. OR GRAB AN EXISTING ONE BEAVIS!!
         xact = Transaction(name)
@@ -180,41 +209,40 @@ class Dwarf(object):
 
     def is_in_cycle(self, edge):
         return self.dfs(edge.tto, edge.tfrom, {})
-                
 
     def shrink(self):
         # (this is not a smart algorithm)
         # pick an edge at random
         # doing this randomly is likely to hurt us!
 
-        while (len(self.dwarf.dependencies) > 2): 
+        while len(self.dwarf.dependencies) > 2:
             print "OK!!!"
-            some_edge  = self.withdraw()
+            some_edge = self.withdraw()
             # if the edge doesn't participate in a cycle, go ahead and delete it.
             if self.is_in_cycle(some_edge):
                 print  "CYC " + str(some_edge)
                 if self.can_shrink(some_edge):
-                   # patch things up
+                    # patch things up
                     print "patching UP " + str(some_edge)
                     if some_edge.tto in self.dwarf.incoming:
                         print "INC: " + str(self.dwarf.incoming[some_edge.tto])
                     else:
                         print "lookup " + some_edge.tto + "hrm, nothing in " + str(self.dwarf.incoming)
                     isnap = copy.deepcopy(self.dwarf.incoming)
-                    #if some_edge.tto in isnap:
+                    # if some_edge.tto in isnap:
                     if some_edge.tto in self.dwarf.incoming:
                         print "UM"
                         snap = list(self.dwarf.incoming[some_edge.tto])
-                        #for incoming in isnap[some_edge.tto]:
+                        # for incoming in isnap[some_edge.tto]:
                         for incoming in snap:
                             print "AGIN " + str(incoming[0].name)
                             self.dwarf.add_dep(incoming[1], incoming[0], some_edge.tto)
-    
+
                     print "OK1"
-                    #osnap = copy.deepcopy(self.dwarf.outgoing)
+                    # osnap = copy.deepcopy(self.dwarf.outgoing)
 
                     if some_edge.tfrom in self.dwarf.outgoing:
-                        snap = list (self.dwarf.outgoing[some_edge.tfrom])
+                        snap = list(self.dwarf.outgoing[some_edge.tfrom])
                         for outgoing in snap:
                             self.dwarf.add_dep(outgoing[1], some_edge.tfrom, outgoing[0])
 
@@ -223,13 +251,14 @@ class Dwarf(object):
                     # add it back!
                     print "adding back"
                     self.dwarf.add_dep(some_edge.label, some_edge.tfrom, some_edge.tto)
-                
+
             else:
                 print "NO CYC " + str(some_edge)
-        
+
     def graph(self, name):
         dot = self.dwarf.to_dot()
         dot.render(name, view=True)
+
 
 class WriteConflict(Dwarf):
     def __init__(self):
@@ -246,7 +275,6 @@ class WriteConflict(Dwarf):
     def can_shrink(self, edge):
         # we can delete any edge in our WW cycle.
         return True
-        
 
 
 class CircularDependency(Dwarf):
@@ -264,7 +292,7 @@ class CircularDependency(Dwarf):
         option2 = options[random.randint(0, 1)]
         self.dwarf.add_dep(option1, edge.tfrom, xact)
         self.dwarf.add_dep(option2, xact, edge.tto)
-    
+
     def can_shrink(self, edge):
         # FIXME
         return True
@@ -290,5 +318,3 @@ class AntiDependency(Dwarf):
     def can_shrink(self, some_edge):
         # FIXME
         return True
-
-
