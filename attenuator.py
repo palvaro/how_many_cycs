@@ -121,7 +121,7 @@ class HyperDSG(object):
             ti_ops = {}
             tj_ops = {}
             if dep.kind == "WW":
-                # assign Ti: {X = foo} Tj: {X = bar}
+                # assign Ti: {X=foo} Tj: {X=bar}
                 ti_ops[":f"] = tj_ops[":f"] = "write"
                 ti_ops[":k"] = tj_ops[":k"] = letters.pop()
                 ti_ops[":v"] = random.randint(1, MAX_AMBIGUITY)
@@ -129,7 +129,7 @@ class HyperDSG(object):
                 txns[dep.tfrom] = ti_ops
                 txns[dep.tto] = tj_ops
             if dep.kind == "WR":
-                # assign Ti: {X = foo} Tj: {Read X=foo}
+                # assign Ti: {X=foo} Tj: {Read X=foo}
                 ti_ops[":f"] = "write"
                 tj_ops[":f"] = "read"
                 ti_ops[":k"] = tj_ops[":k"] = letters.pop()
@@ -137,7 +137,7 @@ class HyperDSG(object):
                 txns[dep.tfrom] = ti_ops
                 txns[dep.tto] = tj_ops
             if dep.kind == "RW":
-                # assign ???
+                # assign Ti: {Read X=foo} Tj: {X=bar} where there already exists some Tk: {X=foo}
         # then go through hdsg edges,
         # for maybe_dep in self.hyper_deps:
 
