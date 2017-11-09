@@ -113,34 +113,33 @@ class HyperDSG(object):
 
     def to_history(self):
         txns = {}
-        letters = random.shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+        #FIXME obviously will need to change potential key choices.
+        letters = list('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+        letters = random.shuffle(letters)
         # go through dsg edges first, assign variables and their associated values as dictated by the label type.
         for dep in self.dsg.dependencies:
-            ops = {}
+            ti_ops = {}
+            tj_ops = {}
             if dep.kind == "WW":
                 # assign Ti: {X = foo} Tj: {X = bar}
-                # are we a spur or cycle?
-                cycle_participants = list(self.dsg.all_reachable(dep.tto, set()))
-                # if we are a spur, doesn't matter which variable we alter, so long as it is unique.
-                # also, if we the first of our cycle to write to a var just assign arbitrarily.
-                if dep.tfrom not in cycle_participants or (
-                        dep.tfrom in cycle_participants and txns[dep.tfrom] is not None):
-                    ops[":f"] = "write"
-                    ops[":k"] = letters.pop()
-                    ops[":v"] = random.randint(1, MAX_AMBIGUITY)
-                # if we are a WW cyclic participant, and second we've accessed, should modify the SAME variable our sister dep has.
-                if dep.tfrom in cycle_participants:
-                    ops[":f"] = "write"
-                    ops[":k"] =  # SISTER'S KEY OF CHOICE
-                    ops[":v"] = random.randint(1, MAX_AMBIGUITY)  # THAT IS NOT THE SAME OUR SISTER CHOSE
-                txns[dep] = ops
-
+                ti_ops[":f"] = tj_ops[":f"] = "write"
+                ti_ops[":k"] = tj_ops[":k"] = letters.pop()
+                ti_ops[":v"] = random.randint(1, MAX_AMBIGUITY)
+                tj_ops[":v"] = random.randint(1, MAX_AMBIGUITY)
+                txns[dep.tfrom] = ti_ops
+                txns[dep.tto] = tj_ops
             if dep.kind == "WR":
-            # assign Ti: {X = foo} Tj: {Read X=foo}
+                # assign Ti: {X = foo} Tj: {Read X=foo}
+                ti_ops[":f"] = "write"
+                tj_ops[":f"] = "read"
+                ti_ops[":k"] = tj_ops[":k"] = letters.pop()
+                ti_ops[":v"] = tj_ops[":v"] = random.randint(1, MAX_AMBIGUITY)
+                txns[dep.tfrom] = ti_ops
+                txns[dep.tto] = tj_ops
             if dep.kind == "RW":
-        # assign
+                # assign ???
         # then go through hdsg edges,
-        for maybe_dep in self.hyper_deps:
+        # for maybe_dep in self.hyper_deps:
 
 
 class Dwarf(object):
